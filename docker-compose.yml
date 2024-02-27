@@ -1,0 +1,80 @@
+version: '3'
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  mailcatcher-data:
+    driver: local
+  pg-database:
+    driver: local
+  ### ignore folder volume #####
+  vendor:
+    driver: local
+
+services:
+  ec-cube:
+    ### ローカルでビルドする場合は以下のコマンドを使用します
+    ## docker build -t ec-cube2 --no-cache --pull --build-arg TAG=8.1-apache .
+    ## docker tag ec-cube2 ghcr.io/ec-cube/ec-cube2-php:8.1-apache
+    image: ghcr.io/nanasess/ec-cube2-php:5.5-apache-2.12.6
+    volumes:
+      ### 同期対象からコストの重いフォルダを除外 #####################
+      - ".:/var/www/app"
+    ports:
+      - 8080:80
+      - 4430:443
+    environment:
+      TZ: Asia/Tokyo
+      PHP_POST_MAX_SIZE: 10M
+      PHP_UPLOAD_MAX_FILESIZE: 10M
+      PHP_LOG_ERRORS: "On"
+      PHP_ERROR_REPORTING: "E_ALL"
+      PHP_ERROR_LOG: "/proc/self/fd/2"
+      # EC-CUBE2 Config
+      HTTP_URL: https://localhost:4430/
+      HTTPS_URL: https://localhost:4430/
+      ROOT_URLPATH: /
+      DOMAIN_NAME: ~
+      ADMIN_DIR: admin/
+      ADMIN_FORCE_SSL: 'false'
+      ADMIN_ALLOW_HOSTS: 'a:0:{}'
+      AUTH_MAGIC: ~
+      PASSWORD_HASH_ALGOS: sha256
+      MAIL_BACKEND: smtp
+      SMTP_HOST: mailcatcher
+      SMTP_PORT: 1025
+      SMTP_USER: ~
+      SMTP_PASSWORD: ~
+      DB_TYPE: pgsql
+      DB_USER: eccube_db_user
+      DB_PASSWORD: password
+      DB_SERVER: postgres
+      DB_NAME: eccube_db
+      DB_PORT: 5432
+    networks:
+      - backend
+  postgres:
+    image: postgres
+    environment:
+      - POSTGRES_DB=eccube_db
+      - POSTGRES_USER=eccube_db_user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_HOST_AUTH_METHOD=md5
+      - POSTGRES_INITDB_ARGS=--auth-host=md5
+    ports:
+      - 15432:5432
+    volumes:
+      - pg-database:/var/lib/postgresql/data
+      - .:/var/www/app
+    networks:
+      - backend
+  ### Mailcatcher ##################################
+  mailcatcher:
+    image: schickling/mailcatcher
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+    networks:
+      - backend
